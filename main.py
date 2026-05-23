@@ -6,6 +6,16 @@ from datetime import datetime
 import os
 
 app = FastAPI()
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 app.add_middleware(
     CORSMiddleware,
