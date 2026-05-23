@@ -9,13 +9,15 @@ app = FastAPI()
 #hola
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+from fastapi.middleware.cors import CORSMiddleware
+
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 MONGO_URL = os.environ.get("MONGO_URL")
 client = MongoClient(MONGO_URL)
