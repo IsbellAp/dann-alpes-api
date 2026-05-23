@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from bson import ObjectId
@@ -26,9 +26,7 @@ def fix_id(doc):
 
 # ─── RF1: Crear reseña ───────────────────────────────────────
 @app.post("/resenas")
-async def crear_resena(request: Request):
-    body = await request.json()
-    
+def crear_resena(body: dict):
     existente = resenas_col.find_one({
         "id_reserva": body["id_reserva"],
         "estado": "publicada"
@@ -55,8 +53,7 @@ async def crear_resena(request: Request):
 
 # ─── RF2: Editar reseña ──────────────────────────────────────
 @app.put("/resenas/{id}")
-async def editar_resena(id: str, request: Request):
-    body = await request.json()
+def editar_resena(id: str, body: dict):
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {
@@ -109,8 +106,7 @@ def get_resenas_cliente(documento_cliente: int, orden: str = "fecha"):
 
 # ─── RF7: Responder reseña (admin) ──────────────────────────
 @app.put("/resenas/{id}/respuesta")
-async def responder_resena(id: str, request: Request):
-    body = await request.json()
+def responder_resena(id: str, body: dict):
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {"respuesta_admin": body["respuesta"]}}
@@ -119,11 +115,7 @@ async def responder_resena(id: str, request: Request):
 
 # ─── RF8: Eliminar reseña (admin) ───────────────────────────
 @app.delete("/resenas/{id}/admin")
-async def eliminar_resena_admin(id: str, request: Request):
-    try:
-        body = await request.json()
-    except:
-        body = {}
+def eliminar_resena_admin(id: str, body: dict = {}):
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {
@@ -136,8 +128,7 @@ async def eliminar_resena_admin(id: str, request: Request):
 
 # ─── RF9: Destacar reseña ───────────────────────────────────
 @app.post("/resenas/{id}/destacar")
-async def destacar_resena(id: str, request: Request):
-    body = await request.json()
+def destacar_resena(id: str, body: dict):
     resenas_col.update_many(
         {"id_hotel": body["id_hotel"]},
         {"$set": {"destacada": False}}
@@ -147,3 +138,69 @@ async def destacar_resena(id: str, request: Request):
         {"$set": {"destacada": True}}
     )
     return {"mensaje": "Reseña destacada"}
+
+# ─── RFC1: Top 10 hoteles por calificación ──────────────────
+@app.get("/analytics/top-hoteles")
+def top_hoteles(fecha_inicio: str, fecha_fin: str):
+    pipeline = [
+        {"$match": {
+            "estado": "publicada",
+            "fecha": {"$gte": fecha_inicio, "$lte": fecha_fin}
+        }},
+        {"$group": {
+            "_id": "$id_hotel",
+            "promedio": {"$avg": "$puntuacion_estrellas"},
+            "total_resenas": {"$sum": 1}
+        }},
+        {"$sort": {"promedio": -1}},
+        {"$limit": 10}
+    ]
+    return list(resenas_col.aggregate(pipeline))
+
+# ─── RFC2: Evolución reputación de un hotel ─────────────────
+@app.get("/analytics/evolucion/{id_hotel}")
+def evolucion_hotel(id_hotel: int, anio: int):
+    pipeline = [
+        {"$match": {
+            "id_hotel": id_hotel,
+            "estado": "publicada",
+            "fecha": {
+                "$gte": f"{anio}-01-01",
+                "$lte": f"{anio}-12-31"
+            }
+        }},
+        {"$group": {
+            "_id": {"$substr": ["$fecha", 0, 7]},
+            "promedio": {"$avg": "$puntuacion_estrellas"},
+            "total": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    return list(resenas_col.aggregate(pipeline))
+
+# ─── RFC3: Perfil comparativo hoteles por ciudad ────────────
+@app.get("/analytics/ciudad")
+def perfil_ciudad(hoteles: str):
+    ids = [int(x) for x in hoteles.split(",")]
+    pipeline = [
+        {"$match": {
+            "id_hotel": {"$in": ids},
+            "estado": "publicada"
+        }},
+        {"$group": {
+            "_id": "$id_hotel",
+            "promedio": {"$avg": "$puntuacion_estrellas"},
+            "total": {"$sum": 1},
+            "con_respuesta": {
+                "$sum": {
+                    "$cond": [
+                        {"$ne": ["$respuesta_admin", None]}, 1, 0
+                    ]
+                }
+            },
+            "destacadas": {
+                "$sum": {"$cond": ["$destacada", 1, 0]}
+            }
+        }}
+    ]
+    return list(resenas_col.aggregate(pipeline))
