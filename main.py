@@ -6,16 +6,35 @@ from datetime import datetime
 import os
 
 app = FastAPI()
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
-    )
+from fastapi import Request
+
+@app.post("/resenas")
+async def crear_resena(request: Request):
+    body = await request.json()
+    
+    existente = resenas_col.find_one({
+        "id_reserva": body["id_reserva"],
+        "estado": "publicada"
+    })
+    if existente:
+        raise HTTPException(400, "Ya existe una reseña activa para esta reserva")
+    
+    nueva = {
+        "id_hotel":            body["id_hotel"],
+        "documento_cliente":   body["documento_cliente"],
+        "id_reserva":          body["id_reserva"],
+        "puntuacion_estrellas": body["puntuacion_estrellas"],
+        "descripcion":         body["descripcion"],
+        "fecha":               datetime.now().strftime("%Y-%m-%d"),
+        "estado":              "publicada",
+        "destacada":           False,
+        "votos_utilidad":      0,
+        "respuesta_admin":     None,
+        "motivo_eliminacion":  None,
+        "eliminada_por":       None
+    }
+    resultado = resenas_col.insert_one(nueva)
+    return {"id": str(resultado.inserted_id), "mensaje": "Reseña creada"}
 
 app.add_middleware(
     CORSMiddleware,
