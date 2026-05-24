@@ -75,9 +75,16 @@ def crear_resena(body: dict):
 
 @app.get("/resenas/hotel/{id_hotel}")
 def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
+    from bson.int64 import Int64
     orden_campo = "fecha" if orden == "fecha" else "votos_utilidad"
     docs = list(resenas_col.find(
-        {"id_hotel": id_hotel, "estado": "PUBLICADA"},
+        {"$and": [
+            {"$or": [
+                {"id_hotel": id_hotel},
+                {"id_hotel": Int64(id_hotel)}
+            ]},
+            {"estado": "publicada"}
+        ]},
         sort=[(orden_campo, -1)]
     ))
     return [fix_id(d) for d in docs]
