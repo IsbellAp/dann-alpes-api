@@ -88,6 +88,14 @@ def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
         ]},
         sort=[(orden_campo, -1)]
     ))
+    
+    # Contar votos de cada reseña
+    for d in docs:
+        d["votos_utilidad"] = votos_col.count_documents({
+            "id_reseña": d.get("id_reseña"),
+            "pulgar_arriba": True
+        })
+    
     return [fix_id(d) for d in docs]
 
 @app.get("/resenas/cliente/{documento_cliente}")
@@ -101,8 +109,15 @@ def get_resenas_cliente(documento_cliente: int, orden: str = "fecha"):
         ]},
         sort=[(orden_campo, -1)]
     ))
+    
+    # Contar votos de cada reseña
+    for d in docs:
+        d["votos_utilidad"] = votos_col.count_documents({
+            "id_reseña": d.get("id_reseña"),
+            "pulgar_arriba": True
+        })
+    
     return [fix_id(d) for d in docs]
-
 @app.put("/resenas/{id}")
 def editar_resena(id: str, body: dict):
     resenas_col.update_one(
