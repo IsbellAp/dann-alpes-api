@@ -86,6 +86,18 @@ def get_resena_por_id(id: str):
     resena = resenas_col.find_one({"_id": ObjectId(id)})
     if not resena:
         raise HTTPException(404, "Reseña no encontrada")
+    
+    # Contar votos
+    resena["votos_utilidad"] = votos_col.count_documents({
+        "id_reseña": resena.get("id_reseña"),
+        "pulgar_arriba": True
+    })
+    
+    # Buscar respuesta
+    respuesta = respuestas_col.find_one({"id_reseña": resena.get("id_reseña")})
+    if respuesta:
+        resena["respuesta_admin"] = respuesta.get("descripcion")
+    
     return fix_id(resena)
 @app.get("/resenas/hotel/{id_hotel}")
 def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
