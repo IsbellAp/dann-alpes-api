@@ -70,7 +70,8 @@ def eliminar_resena(id: str):
         {"_id": ObjectId(id)},
         {"$set": {
             "estado":             "eliminada",
-            "eliminada_por":      "cliente"
+            "eliminada_por":      "cliente",
+            "motivo_eliminacion": "Eliminada por el cliente"
         }}
     )
     return {"mensaje": "Reseña eliminada"}
@@ -119,9 +120,9 @@ def eliminar_resena_admin(id: str, body: dict = {}):
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {
-            "estado":            "eliminada",
-            "eliminada_por":     "admin",
-            "motivo_eliminacion": body.get("motivo", "Violación de políticas")
+            "estado":             "eliminada",
+            "eliminada_por":      "admin",
+            "motivo_eliminacion": body.get("motivo", "Eliminada por administrador")
         }}
     )
     return {"mensaje": "Reseña eliminada por administrador"}
