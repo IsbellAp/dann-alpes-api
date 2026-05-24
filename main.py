@@ -70,10 +70,9 @@ def crear_resena(body: dict):
         "puntuacion_estrellas": body["puntuacion_estrellas"],
         "descripcion":         body["descripcion"],
         "fecha":               datetime.now().strftime("%Y-%m-%d"),
+        "hora":                datetime.now().strftime("%H:%M"),
         "estado":              "publicada",
         "destacada":           False,
-        "votos_utilidad":      0,
-        "respuesta_admin":     None,
         "motivo_eliminacion":  None,
         "eliminada_por":       None
     }
