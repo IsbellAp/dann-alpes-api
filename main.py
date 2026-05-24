@@ -84,9 +84,13 @@ def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
 
 @app.get("/resenas/cliente/{documento_cliente}")
 def get_resenas_cliente(documento_cliente: int, orden: str = "fecha"):
+    from bson.int64 import Int64
     orden_campo = "fecha" if orden == "fecha" else "id_hotel"
     docs = list(resenas_col.find(
-        {"documento_cliente": documento_cliente},
+        {"$or": [
+            {"documento_cliente": documento_cliente},
+            {"documento_cliente": Int64(documento_cliente)}
+        ]},
         sort=[(orden_campo, -1)]
     ))
     return [fix_id(d) for d in docs]
