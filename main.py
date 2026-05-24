@@ -79,6 +79,14 @@ def crear_resena(body: dict):
     }
     resultado = resenas_col.insert_one(nueva)
     return {"id": str(resultado.inserted_id), "mensaje": "Reseña creada"}
+
+
+@app.get("/resenas/{id}")
+def get_resena_por_id(id: str):
+    resena = resenas_col.find_one({"_id": ObjectId(id)})
+    if not resena:
+        raise HTTPException(404, "Reseña no encontrada")
+    return fix_id(resena)
 @app.get("/resenas/hotel/{id_hotel}")
 def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
     from bson.int64 import Int64
