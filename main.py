@@ -43,6 +43,7 @@ MONGO_URL = os.environ.get("MONGO_URL")
 client = MongoClient(MONGO_URL)
 db = client["dann_alpes_resenas"]
 resenas_col = db["resenas"]
+votos_col = db["votos"]
 
 def fix_id(doc):
     doc["_id"] = str(doc["_id"])
@@ -125,12 +126,33 @@ def eliminar_resena(id: str):
     )
     return {"mensaje": "Reseña eliminada"}
 
+
 @app.post("/resenas/{id}/util")
-def marcar_util(id: str):
-    resenas_col.update_one(
-        {"_id": ObjectId(id)},
-        {"$inc": {"votos_utilidad": 1}}
-    )
+async def marcar_util(id: str, request: Request):
+    try:
+        body = await request.json()
+    except:
+        body = {}
+    
+    # Obtenemos el id_reseña real del documento
+    resena = resenas_col.find_one({"_id": ObjectId(id)})
+    if not resena:
+        raise HTTPException(404, "Reseña no encontrada")
+    
+    from bson.int64 import Int64
+    from datetime import datetime
+    import random
+    
+    nuevo_voto = {
+        "id_voto_de_utilidad": Int64(random.randint(1000000, 99999999)),
+        "documento_cliente": Int64(body.get("documento_cliente", 0)),
+        "id_reseña": resena.get("id_reseña"),
+        "id_respuesta_administrativa": None,
+        "pulgar_arriba": True,
+        "fecha_voto": datetime.now()
+    }
+    votos_col.insert_one(nuevo_voto)
+    
     return {"mensaje": "Voto registrado"}
 
 @app.put("/resenas/{id}/respuesta")
