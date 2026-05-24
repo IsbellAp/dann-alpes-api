@@ -139,12 +139,17 @@ def editar_resena(id: str, body: dict):
     return {"mensaje": "Reseña actualizada"}
 
 @app.delete("/resenas/{id}")
-def eliminar_resena(id: str):
+async def eliminar_resena(id: str, request: Request):
+    try:
+        body = await request.json()
+    except:
+        body = {}
+    
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {
             "estado":             "ELIMINADA",
-            "eliminada_por":      "cliente",
+            "eliminada_por":      body.get("usuario", "cliente"),
             "motivo_eliminacion": "Eliminada por el cliente"
         }}
     )
@@ -218,13 +223,18 @@ async def responder_resena(id: str, request: Request):
     return {"mensaje": "Respuesta registrada"}
 
 @app.delete("/resenas/{id}/admin")
-def eliminar_resena_admin(id: str):
+async def eliminar_resena_admin(id: str, request: Request):
+    try:
+        body = await request.json()
+    except:
+        body = {}
+    
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {
             "estado":             "ELIMINADA",
-            "eliminada_por":      "admin",
-            "motivo_eliminacion": "Eliminada por administrador"
+            "eliminada_por":      body.get("usuario", "admin"),
+            "motivo_eliminacion": body.get("motivo", "Eliminada por administrador")
         }}
     )
     return {"mensaje": "Reseña eliminada por administrador"}
