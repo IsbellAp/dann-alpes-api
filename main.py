@@ -58,7 +58,12 @@ def crear_resena(body: dict):
     })
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe una reseña activa para esta reserva")
+    
+    from bson.int64 import Int64
+    import random
+    
     nueva = {
+        "id_reseña":           Int64(random.randint(100000, 999999999)),
         "id_hotel":            body["id_hotel"],
         "documento_cliente":   body["documento_cliente"],
         "id_reserva":          body["id_reserva"],
@@ -74,7 +79,6 @@ def crear_resena(body: dict):
     }
     resultado = resenas_col.insert_one(nueva)
     return {"id": str(resultado.inserted_id), "mensaje": "Reseña creada"}
-
 @app.get("/resenas/hotel/{id_hotel}")
 def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
     from bson.int64 import Int64
