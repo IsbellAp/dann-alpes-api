@@ -44,6 +44,7 @@ client = MongoClient(MONGO_URL)
 db = client["dann_alpes_resenas"]
 resenas_col = db["resenas"]
 votos_col = db["votos"]
+respuestas_col = db["respuestas"]
 
 def fix_id(doc):
     doc["_id"] = str(doc["_id"])
@@ -90,11 +91,15 @@ def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
     ))
     
     # Contar votos de cada reseña
+   # Contar votos y buscar respuesta de cada reseña
     for d in docs:
         d["votos_utilidad"] = votos_col.count_documents({
             "id_reseña": d.get("id_reseña"),
             "pulgar_arriba": True
         })
+        respuesta = respuestas_col.find_one({"id_reseña": d.get("id_reseña")})
+        if respuesta:
+            d["respuesta_admin"] = respuesta.get("descripcion")
     
     return [fix_id(d) for d in docs]
 
@@ -111,11 +116,15 @@ def get_resenas_cliente(documento_cliente: int, orden: str = "fecha"):
     ))
     
     # Contar votos de cada reseña
+    # Contar votos y buscar respuesta de cada reseña
     for d in docs:
         d["votos_utilidad"] = votos_col.count_documents({
             "id_reseña": d.get("id_reseña"),
             "pulgar_arriba": True
         })
+        respuesta = respuestas_col.find_one({"id_reseña": d.get("id_reseña")})
+        if respuesta:
+            d["respuesta_admin"] = respuesta.get("descripcion")
     
     return [fix_id(d) for d in docs]
 @app.put("/resenas/{id}")
@@ -171,11 +180,41 @@ async def marcar_util(id: str, request: Request):
     return {"mensaje": "Voto registrado"}
 
 @app.put("/resenas/{id}/respuesta")
-def responder_resena(id: str, body: dict):
-    resenas_col.update_one(
-        {"_id": ObjectId(id)},
-        {"$set": {"respuesta_admin": body["respuesta"]}}
-    )
+async def responder_resena(id: str, request: Request):
+    body = await request.json()
+    
+    from bson.int64 import Int64
+    from datetime import datetime
+    import random
+    
+    resena = resenas_col.find_one({"_id": ObjectId(id)})
+    if not resena:
+        raise HTTPException(404, "Reseña no encontrada")
+    
+    # Verifica si ya hay respuesta para editar
+    existente = respuestas_col.find_one({"id_reseña": resena.get("id_reseña")})
+    
+    if existente:
+        # Editar respuesta existente
+        respuestas_col.update_one(
+            {"_id": existente["_id"]},
+            {"$set": {
+                "descripcion": body["respuesta"],
+                "fecha": datetime.now()
+            }}
+        )
+    else:
+        # Crear nueva respuesta
+        nueva = {
+            "id_respuesta_administrativa": Int64(random.randint(1000000, 99999999)),
+            "id_reseña": resena.get("id_reseña"),
+            "documento_administrador": Int64(body.get("documento_administrador", 7483921056)),
+            "descripcion": body["respuesta"],
+            "fecha": datetime.now(),
+            "hora": datetime.now().strftime("%H:%M")
+        }
+        respuestas_col.insert_one(nueva)
+    
     return {"mensaje": "Respuesta registrada"}
 
 @app.delete("/resenas/{id}/admin")
