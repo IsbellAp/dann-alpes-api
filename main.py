@@ -1,8 +1,51 @@
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pymongo import MongoClient
+from bson import ObjectId
+from datetime import datetime
+import os
+
+app = FastAPI()
+
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    if request.method == "OPTIONS":
+        response = JSONResponse(content="OK")
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
+
+MONGO_URL = os.environ.get("MONGO_URL")
+client = MongoClient(MONGO_URL)
+db = client["dann_alpes_resenas"]
+resenas_col = db["resenas"]
+
+def fix_id(doc):
+    doc["_id"] = str(doc["_id"])
+    return doc
+
 @app.post("/resenas")
 def crear_resena(body: dict):
     existente = resenas_col.find_one({
         "id_reserva": body["id_reserva"],
-        "estado": "PUBLICADA"    # ← mayúsculas
+        "estado": "publicada"
     })
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe una reseña activa para esta reserva")
@@ -12,8 +55,8 @@ def crear_resena(body: dict):
         "id_reserva":          body["id_reserva"],
         "puntuacion_estrellas": body["puntuacion_estrellas"],
         "descripcion":         body["descripcion"],
-        "fecha":               datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-        "estado":              "PUBLICADA",    # ← mayúsculas
+        "fecha":               datetime.now().strftime("%Y-%m-%d"),
+        "estado":              "PUBLICADA",
         "destacada":           False,
         "votos_utilidad":      0,
         "respuesta_admin":     None,
@@ -27,7 +70,7 @@ def crear_resena(body: dict):
 def get_resenas_hotel(id_hotel: int, orden: str = "fecha"):
     orden_campo = "fecha" if orden == "fecha" else "votos_utilidad"
     docs = list(resenas_col.find(
-        {"id_hotel": id_hotel, "estado": "PUBLICADA"},    # ← mayúsculas
+        {"id_hotel": id_hotel, "estado": "PUBLICADA"},
         sort=[(orden_campo, -1)]
     ))
     return [fix_id(d) for d in docs]
@@ -41,35 +84,74 @@ def get_resenas_cliente(documento_cliente: int, orden: str = "fecha"):
     ))
     return [fix_id(d) for d in docs]
 
+@app.put("/resenas/{id}")
+def editar_resena(id: str, body: dict):
+    resenas_col.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {
+            "puntuacion_estrellas": body["puntuacion_estrellas"],
+            "descripcion":          body["descripcion"]
+        }}
+    )
+    return {"mensaje": "Reseña actualizada"}
+
 @app.delete("/resenas/{id}")
 def eliminar_resena(id: str):
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {
-            "estado":             "ELIMINADA",    # ← mayúsculas
+            "estado":             "ELIMINADA",
             "eliminada_por":      "cliente",
             "motivo_eliminacion": "Eliminada por el cliente"
         }}
     )
     return {"mensaje": "Reseña eliminada"}
 
+@app.post("/resenas/{id}/util")
+def marcar_util(id: str):
+    resenas_col.update_one(
+        {"_id": ObjectId(id)},
+        {"$inc": {"votos_utilidad": 1}}
+    )
+    return {"mensaje": "Voto registrado"}
+
+@app.put("/resenas/{id}/respuesta")
+def responder_resena(id: str, body: dict):
+    resenas_col.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {"respuesta_admin": body["respuesta"]}}
+    )
+    return {"mensaje": "Respuesta registrada"}
+
 @app.delete("/resenas/{id}/admin")
 def eliminar_resena_admin(id: str):
     resenas_col.update_one(
         {"_id": ObjectId(id)},
         {"$set": {
-            "estado":             "ELIMINADA",    # ← mayúsculas
+            "estado":             "ELIMINADA",
             "eliminada_por":      "admin",
             "motivo_eliminacion": "Eliminada por administrador"
         }}
     )
     return {"mensaje": "Reseña eliminada por administrador"}
 
+@app.post("/resenas/{id}/destacar")
+def destacar_resena(id: str, body: dict):
+    resenas_col.update_many(
+        {"id_hotel": body["id_hotel"]},
+        {"$set": {"destacada": False}}
+    )
+    resenas_col.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {"destacada": True}}
+    )
+    return {"mensaje": "Reseña destacada"}
+
 @app.get("/analytics/top-hoteles")
 def top_hoteles(fecha_inicio: str, fecha_fin: str):
     pipeline = [
         {"$match": {
-            "estado": "PUBLICADA",    # ← mayúsculas
+            "estado": "publicada",
             "fecha": {"$gte": fecha_inicio, "$lte": fecha_fin}
         }},
         {"$group": {
@@ -87,7 +169,7 @@ def evolucion_hotel(id_hotel: int, anio: int):
     pipeline = [
         {"$match": {
             "id_hotel": id_hotel,
-            "estado": "PUBLICADA",    # ← mayúsculas
+            "estado": "PUBLICADA",
             "fecha": {
                 "$gte": f"{anio}-01-01",
                 "$lte": f"{anio}-12-31"
@@ -108,7 +190,7 @@ def perfil_ciudad(hoteles: str):
     pipeline = [
         {"$match": {
             "id_hotel": {"$in": ids},
-            "estado": "PUBLICADA"    # ← mayúsculas
+            "estado": "PUBLICADA"
         }},
         {"$group": {
             "_id": "$id_hotel",
