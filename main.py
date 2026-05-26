@@ -276,19 +276,42 @@ def destacar_resena(id: str, body: dict):
 
 @app.get("/analytics/top-hoteles")
 def top_hoteles(fecha_inicio: str, fecha_fin: str):
-    pipeline = [  
-        {"$match": {
-            "estado": "PUBLICADA",
-            "fecha": {"$gte": fecha_inicio, "$lte": fecha_fin}
-        }},
-        {"$group": {
-            "_id": "$id_hotel",
-            "promedio": {"$avg": "$puntuacion_estrellas"},
-            "total_resenas": {"$sum": 1}
-        }},
-        {"$sort": {"promedio": -1}},
+    pipeline = [
+        {
+            "$addFields": {
+                "fecha_str": {
+                    "$dateToString": {
+                        "format": "%Y-%m-%d",
+                        "date": "$fecha"
+                    }
+                }
+            }
+        },
+        {
+            "$match": {
+                "estado": "PUBLICADA",
+                "fecha_str": {
+                    "$gte": fecha_inicio,
+                    "$lte": fecha_fin
+                }
+            }
+        },
+        {
+            "$group": {
+                "_id": "$id_hotel",
+                "promedio": {"$avg": "$puntuacion_estrellas"},
+                "total_resenas": {"$sum": 1}
+            }
+        },
+        {
+            "$sort": {
+                "promedio": -1,
+                "total_resenas": -1
+            }
+        },
         {"$limit": 10}
     ]
+
     return list(resenas_col.aggregate(pipeline))
 
 @app.get("/analytics/evolucion/{id_hotel}")
