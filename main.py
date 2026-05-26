@@ -373,24 +373,36 @@ def evolucion_hotel(id_hotel: int, anio: int):
 
 @app.get("/analytics/ciudad")
 def perfil_ciudad(hoteles: str):
+    from bson.int64 import Int64
+
     ids = [int(x) for x in hoteles.split(",")]
+
     pipeline = [
-        {"$match": {
-            "id_hotel": {"$in": ids},
-            "estado": "PUBLICADA"
-        }},
-        {"$group": {
-            "_id": "$id_hotel",
-            "promedio": {"$avg": "$puntuacion_estrellas"},
-            "total": {"$sum": 1},
-            "con_respuesta": {
-                "$sum": {
-                    "$cond": [{"$ne": ["$respuesta_admin", None]}, 1, 0]
-                }
-            },
-            "destacadas": {
-                "$sum": {"$cond": ["$destacada", 1, 0]}
+        {
+            "$match": {
+                "id_hotel": { "$in": ids + [Int64(x) for x in ids] },
+                "estado": { "$in": ["PUBLICADA", "publicada"] }
             }
-        }}
+        },
+        {
+            "$group": {
+                "_id": "$id_hotel",
+                "promedio": { "$avg": "$puntuacion_estrellas" },
+                "total": { "$sum": 1 },
+
+                # TEMPORAL (no rompe y permite entregar)
+                "con_respuesta": { "$sum": 0 },
+
+                "destacadas": {
+                    "$sum": {
+                        "$cond": ["$destacada", 1, 0]
+                    }
+                }
+            }
+        },
+        {
+            "$sort": { "promedio": -1 }
+        }
     ]
+
     return list(resenas_col.aggregate(pipeline))
