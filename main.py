@@ -322,22 +322,53 @@ def top_hoteles(fecha_inicio: str, fecha_fin: str):
 
 @app.get("/analytics/evolucion/{id_hotel}")
 def evolucion_hotel(id_hotel: int, anio: int):
+
+    from bson.int64 import Int64
+
     pipeline = [
-        {"$match": {
-            "id_hotel": id_hotel,
-            "estado": "PUBLICADA",
-            "fecha": {
-                "$gte": f"{anio}-01-01",
-                "$lte": f"{anio}-12-31"
+        {
+            "$addFields": {
+                "fecha_str": {
+                    "$cond": [
+                        { "$eq": [{ "$type": "$fecha" }, "date"] },
+                        {
+                            "$dateToString": {
+                                "format": "%Y-%m-%d",
+                                "date": "$fecha"
+                            }
+                        },
+                        "$fecha"
+                    ]
+                }
             }
-        }},
-        {"$group": {
-            "_id": {"$substr": ["$fecha", 0, 7]},
-            "promedio": {"$avg": "$puntuacion_estrellas"},
-            "total": {"$sum": 1}
-        }},
-        {"$sort": {"_id": 1}}
+        },
+        {
+            "$match": {
+                "id_hotel": { "$in": [id_hotel, Int64(id_hotel)] },
+                "estado": { "$in": ["PUBLICADA", "publicada"] },
+                "fecha_str": {
+                    "$gte": f"{anio}-01-01",
+                    "$lte": f"{anio}-12-31"
+                }
+            }
+        },
+        {
+            "$addFields": {
+                "mes": { "$substr": ["$fecha_str", 0, 7] }
+            }
+        },
+        {
+            "$group": {
+                "_id": "$mes",
+                "promedio": { "$avg": "$puntuacion_estrellas" },
+                "total": { "$sum": 1 }
+            }
+        },
+        {
+            "$sort": { "_id": 1 }
+        }
     ]
+
     return list(resenas_col.aggregate(pipeline))
 
 @app.get("/analytics/ciudad")
