@@ -295,7 +295,7 @@ def top_hoteles(fecha_inicio: str, fecha_fin: str):
         },
         {
             "$match": {
-                "estado": "PUBLICADA",
+                "estado": { "$in": ["PUBLICADA", "publicada"] },
                 "fecha_str": {
                     "$gte": fecha_inicio,
                     "$lte": fecha_fin
