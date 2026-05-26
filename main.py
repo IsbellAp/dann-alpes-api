@@ -280,10 +280,16 @@ def top_hoteles(fecha_inicio: str, fecha_fin: str):
         {
             "$addFields": {
                 "fecha_str": {
-                    "$dateToString": {
-                        "format": "%Y-%m-%d",
-                        "date": "$fecha"
-                    }
+                    "$cond": [
+                        { "$eq": [{ "$type": "$fecha" }, "date"] },
+                        {
+                            "$dateToString": {
+                                "format": "%Y-%m-%d",
+                                "date": "$fecha"
+                            }
+                        },
+                        "$fecha"
+                    ]
                 }
             }
         },
@@ -309,7 +315,7 @@ def top_hoteles(fecha_inicio: str, fecha_fin: str):
                 "total_resenas": -1
             }
         },
-        {"$limit": 10}
+        { "$limit": 10 }
     ]
 
     return list(resenas_col.aggregate(pipeline))
